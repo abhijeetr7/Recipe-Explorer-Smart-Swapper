@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Explorer + Smart Swapper</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Styling for all modals */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            backdrop-filter: blur(5px); /* Blurred background */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 2.5rem; /* Increased padding */
+            border-radius: 1rem; /* More rounded corners */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); /* Stronger shadow */
+            max-width: 90%;
+            width: 500px; /* Default width for general modal */
+            position: relative;
+            animation: fadeIn 0.3s ease-out;
+        }
+        /* Specific width for recipe detail modal */
+        #recipe-detail-modal .modal-content {
+            width: 90%;
+            max-width: 900px;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 2rem; /* Larger close button */
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s ease-in-out;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #333;
+            text-decoration: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Star rating styles */
+        .star-rating input[type="radio"] {
+            display: none;
+        }
+        .star-rating label {
+            font-size: 2rem;
+            color: #ccc;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .star-rating label:hover,
+        .star-rating label:hover ~ label,
+        .star-rating input[type="radio"]:checked ~ label {
+            color: #ffc107; /* Gold color */
+        }
+        .star-rating {
+            display: flex;
+            flex-direction: row-reverse; /* Reverse order for star selection */
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container min-h-screen flex flex-col py-8">
+        <!-- Header -->
+        <header class="w-full text-center mb-10">
+            <h1 class="text-5xl font-extrabold text-indigo-700 mb-4 tracking-tight">🍳 Recipe Explorer</h1>
+            <p class="text-xl text-gray-600">Browse, add, and customize your favorite recipes!</p>
+            <!-- Navigation/Filter/Search -->
+            <nav class="mt-6 flex flex-wrap justify-center gap-4">
+                <button id="home-view-btn" class="py-2 px-5 bg-indigo-500 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-600 transition duration-300">Home</button>
+                <button id="add-recipe-view-btn" class="py-2 px-5 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 transition duration-300">Add Recipe</button>
+                <button id="favorites-view-btn" class="py-2 px-5 bg-yellow-500 text-white font-semibold rounded-lg shadow-md hover:bg-yellow-600 transition duration-300">Favorites</button>
+            </nav>
+            <div class="mt-6 flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <input type="text" id="search-input" placeholder="Search by title or ingredient..." class="w-full sm:w-80 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                <select id="category-filter" class="w-full sm:w-48 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                    <option value="all">All Categories</option>
+                    <option value="Breakfast">Breakfast</option>
+                    <option value="Lunch">Lunch</option>
+                    <option value="Dinner">Dinner</option>
+                    <option value="Dessert">Dessert</option>
+                    <option value="Snack">Snack</option>
+                </select>
+                <select id="tag-filter" class="w-full sm:w-48 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                    <option value="all">All Tags</option>
+                    <option value="Vegan">Vegan</option>
+                    <option value="Gluten-Free">Gluten-Free</option>
+                    <option value="Keto">Keto</option>
+                    <option value="Quick">Quick</option>
+                    <option value="Healthy">Healthy</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Recipe List -->
+            <section id="recipe-browser-section" class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+                <h2 class="text-3xl font-bold text-indigo-600 mb-6 border-b-2 pb-3 border-indigo-200">Recipes</h2>
+                <div id="recipe-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Recipe cards will be injected here by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Right Column: Add Recipe Form, Swapper, Timer, Checklist -->
+            <aside class="lg:col-span-1 flex flex-col gap-8">
+                <!-- Add Recipe Form -->
+                <section id="add-recipe-form-section" class="bg-white p-6 rounded-2xl shadow-xl border border-gray-200 hidden">
+                    <h2 class="text-3xl font-bold text-indigo-600 mb-6 border-b-2 pb-3 border-indigo-200">Add New Recipe</h2>
+                    <form id="add-recipe-form" class="space-y-4">
+                        <div>
+                            <label for="add-recipe-title" class="block text-gray-700 font-medium mb-1">Recipe Title</label>
+                            <input type="text" id="add-recipe-title" placeholder="e.g., Classic Lasagna" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                        </div>
+                        <div>
+                            <label for="add-recipe-image-url" class="block text-gray-700 font-medium mb-1">Image URL</label>
+                            <input type="url" id="add-recipe-image-url" placeholder="e.g., https://placehold.co/600x400" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                        </div>
+                        <div>
+                            <label for="add-recipe-description" class="block text-gray-700 font-medium mb-1">Short Description</label>
+                            <textarea id="add-recipe-description" rows="3" placeholder="A brief overview of the recipe..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                        </div>
+                        <div>
+                            <label for="add-recipe-ingredients" class="block text-gray-700 font-medium mb-1">Ingredients (one per line)</label>
+                            <textarea id="add-recipe-ingredients" rows="5" placeholder="e.g.,&#10;2 cups milk&#10;1 cup flour&#10;1/2 cup sugar" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                        </div>
+                        <div>
+                            <label for="add-recipe-instructions" class="block text-gray-700 font-medium mb-1">Instructions</label>
+                            <textarea id="add-recipe-instructions" rows="7" placeholder="e.g.,&#10;1. Preheat oven to 375°F.&#10;2. Mix ingredients in a bowl.&#10;3. Bake for 30 minutes." required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                        </div>
+                        <div>
+                            <label for="add-recipe-category" class="block text-gray-700 font-medium mb-1">Category</label>
+                            <select id="add-recipe-category" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                                <option value="">-- Select Category --</option>
+                                <option value="Breakfast">Breakfast</option>
+                                <option value="Lunch">Lunch</option>
+                                <option value="Dinner">Dinner</option>
+                                <option value="Dessert">Dessert</option>
+                                <option value="Snack">Snack</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="add-recipe-tags" class="block text-gray-700 font-medium mb-1">Tags (comma-separated)</label>
+                            <input type="text" id="add-recipe-tags" placeholder="e.g., Vegan, Quick, Healthy" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                        </div>
+                        <button type="submit" class="w-full py-3 px-6 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:scale-105">
+                            Save Recipe
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Cooking Tools (Timer & Checklist - Global) -->
+                <section class="bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+                    <h2 class="text-3xl font-bold text-indigo-600 mb-6 border-b-2 pb-3 border-indigo-200">Global Cooking Tools</h2>
+
+                    <!-- Timer -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Timer</h3>
+                        <div class="flex items-center justify-center space-x-2 mb-4">
+                            <input type="number" id="timer-minutes" value="0" min="0" class="w-20 p-2 border border-gray-300 rounded-lg text-center text-xl font-mono">
+                            <span class="text-2xl font-bold">:</span>
+                            <input type="number" id="timer-seconds" value="0" min="0" max="59" class="w-20 p-2 border border-gray-300 rounded-lg text-center text-xl font-mono">
+                        </div>
+                        <div id="timer-display" class="text-5xl font-bold text-center text-indigo-700 mb-4">00:00</div>
+                        <div class="flex justify-center gap-4">
+                            <button id="timer-start" class="py-2 px-5 bg-green-500 text-white rounded-lg shadow hover:bg-green-600 transition duration-200">Start</button>
+                            <button id="timer-pause" class="py-2 px-5 bg-yellow-500 text-white rounded-lg shadow hover:bg-yellow-600 transition duration-200">Pause</button>
+                            <button id="timer-reset" class="py-2 px-5 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition duration-200">Reset</button>
+                        </div>
+                    </div>
+
+                    <!-- Global Checklist -->
+                    <div>
+                        <h3 class="text-2xl font-semibold text-gray-800 mb-4">Global Checklist</h3>
+                        <div class="flex mb-4">
+                            <input type="text" id="global-checklist-item-input" placeholder="Add a general task..." class="flex-grow p-3 border border-gray-300 rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            <button id="add-global-checklist-item" class="py-3 px-6 bg-indigo-500 text-white rounded-r-lg shadow hover:bg-indigo-600 transition duration-200">Add</button>
+                        </div>
+                        <ul id="global-checklist" class="space-y-2 max-h-60 overflow-y-auto">
+                            <!-- Global Checklist items will be injected here -->
+                        </ul>
+                        <button id="clear-completed-global-checklist" class="mt-4 w-full py-2 px-4 bg-red-400 text-white rounded-lg shadow hover:bg-red-500 transition duration-200">Clear Completed</button>
+                    </div>
+                </section>
+            </aside>
+        </main>
+    </div>
+
+    <!-- General Message Modal -->
+    <div id="custom-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 id="modal-title" class="text-2xl font-bold text-indigo-700 mb-4"></h3>
+            <div id="modal-body" class="text-gray-700 leading-relaxed max-h-96 overflow-y-auto"></div>
+            <div class="flex justify-end mt-6">
+                <button id="modal-ok-button" class="py-2 px-6 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-300">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipe Detail Modal -->
+    <div id="recipe-detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="detail-modal-close-button">&times;</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Left: Image, Title, Description, Actions, Feedback -->
+                <div>
+                    <img id="detail-recipe-image" src="" alt="Recipe Image" class="w-full h-64 object-cover rounded-xl mb-4 shadow-md">
+                    <h2 id="detail-recipe-title" class="text-4xl font-extrabold text-indigo-700 mb-3"></h2>
+                    <p id="detail-recipe-description" class="text-gray-600 mb-4"></p>
+                    <div id="detail-recipe-tags" class="flex flex-wrap gap-2 mb-4"></div>
+
+                    <div class="flex items-center gap-4 mb-6">
+                        <button id="detail-favorite-btn" class="py-2 px-5 bg-yellow-500 text-white font-semibold rounded-lg shadow-md hover:bg-yellow-600 transition duration-300 flex items-center gap-2">
+                            <span id="favorite-icon">⭐</span> <span id="favorite-text">Add to Favorites</span>
+                        </button>
+                        <button id="detail-mark-done-btn" class="py-2 px-5 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 transition duration-300 flex items-center gap-2">
+                            <span id="done-icon">✅</span> <span id="done-text">Mark as Done</span>
+                        </button>
+                        <button id="detail-edit-btn" class="py-2 px-5 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition duration-300 flex items-center gap-2">
+                            Edit
+                        </button>
+                    </div>
+
+                    <!-- Feedback Section -->
+                    <div id="detail-feedback-section" class="bg-gray-50 p-4 rounded-lg shadow-inner border border-gray-200">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-3">Your Feedback</h3>
+                        <div id="detail-feedback-display">
+                            <p class="text-gray-600 italic">No feedback yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Ingredients, Instructions (Checklist) -->
+                <div>
+                    <!-- Ingredient Swapper within Detail View -->
+                    <div class="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h3 class="text-xl font-bold text-blue-700 mb-3">Ingredient Swapper</h3>
+                        <div class="flex flex-wrap gap-3 mb-4">
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="detail-swap-vegan" class="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500">
+                                <span class="ml-2 text-gray-700">Vegan</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="detail-swap-gluten-free" class="form-checkbox h-5 w-5 text-yellow-600 rounded focus:ring-yellow-500">
+                                <span class="ml-2 text-gray-700">Gluten-Free</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="checkbox" id="detail-swap-keto" class="form-checkbox h-5 w-5 text-purple-600 rounded focus:ring-purple-500">
+                                <span class="ml-2 text-gray-700">Keto</span>
+                            </label>
+                        </div>
+                        <button id="detail-apply-swap-button" class="w-full py-2 px-4 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-300">
+                            Apply Swaps
+                        </button>
+                    </div>
+
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Ingredients</h3>
+                    <ul id="detail-ingredients-list" class="list-disc list-inside text-gray-600 space-y-1 mb-6">
+                        <!-- Ingredients will be loaded here -->
+                    </ul>
+
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Instructions Checklist</h3>
+                    <ul id="detail-instructions-checklist" class="space-y-2 max-h-80 overflow-y-auto bg-gray-50 p-4 rounded-lg shadow-inner border border-gray-200">
+                        <!-- Instructions will be loaded as checklist items here -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="feedback-modal-close-button">&times;</span>
+            <h3 class="text-2xl font-bold text-indigo-700 mb-4">Rate This Recipe!</h3>
+            <div class="flex flex-col items-center space-y-4">
+                <div class="star-rating">
+                    <input type="radio" id="star5" name="rating" value="5"><label for="star5" title="5 stars">★</label>
+                    <input type="radio" id="star4" name="rating" value="4"><label for="star4" title="4 stars">★</label>
+                    <input type="radio" id="star3" name="rating" value="3"><label for="star3" title="3 stars">★</label>
+                    <input type="radio" id="star2" name="rating" value="2"><label for="star2" title="2 stars">★</label>
+                    <input type="radio" id="star1" name="rating" value="1"><label for="star1" title="1 star">★</label>
+                </div>
+                <textarea id="feedback-comment" rows="4" placeholder="Share your thoughts about this recipe..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                <button id="submit-feedback-btn" class="w-full py-3 px-6 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700 transition duration-300">Submit Feedback</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Recipe Modal -->
+    <div id="edit-recipe-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" id="edit-modal-close-button">&times;</span>
+            <h3 class="text-2xl font-bold text-indigo-700 mb-4">Edit Recipe</h3>
+            <form id="edit-recipe-form" class="space-y-4">
+                <input type="hidden" id="edit-recipe-id">
+                <div>
+                    <label for="edit-recipe-title" class="block text-gray-700 font-medium mb-1">Recipe Title</label>
+                    <input type="text" id="edit-recipe-title" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                </div>
+                <div>
+                    <label for="edit-recipe-image-url" class="block text-gray-700 font-medium mb-1">Image URL</label>
+                    <input type="url" id="edit-recipe-image-url" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                </div>
+                <div>
+                    <label for="edit-recipe-description" class="block text-gray-700 font-medium mb-1">Short Description</label>
+                    <textarea id="edit-recipe-description" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                </div>
+                <div>
+                    <label for="edit-recipe-ingredients" class="block text-gray-700 font-medium mb-1">Ingredients (one per line)</label>
+                    <textarea id="edit-recipe-ingredients" rows="5" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                </div>
+                <div>
+                    <label for="edit-recipe-instructions" class="block text-gray-700 font-medium mb-1">Instructions</label>
+                    <textarea id="edit-recipe-instructions" rows="7" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"></textarea>
+                </div>
+                <div>
+                    <label for="edit-recipe-category" class="block text-gray-700 font-medium mb-1">Category</label>
+                    <select id="edit-recipe-category" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                        <option value="">-- Select Category --</option>
+                        <option value="Breakfast">Breakfast</option>
+                        <option value="Lunch">Lunch</option>
+                        <option value="Dinner">Dinner</option>
+                        <option value="Dessert">Dessert</option>
+                        <option value="Snack">Snack</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-recipe-tags" class="block text-gray-700 font-medium mb-1">Tags (comma-separated)</label>
+                    <input type="text" id="edit-recipe-tags" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200">
+                </div>
+                <button type="submit" class="w-full py-3 px-6 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:scale-105">
+                    Update Recipe
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Global Variables and Initial Setup ---
+        let recipes = []; // Array to store recipe objects
+        let timerInterval; // Variable to hold the timer interval
+        let timeLeft = 0; // Time remaining in seconds for the timer
+        let currentRecipeIdForDetailView = null; // Stores the ID of the recipe currently in the detail modal
+
+        // --- DOM Elements ---
+        const homeViewBtn = document.getElementById('home-view-btn');
+        const addRecipeViewBtn = document.getElementById('add-recipe-view-btn');
+        const favoritesViewBtn = document.getElementById('favorites-view-btn');
+        const searchInput = document.getElementById('search-input');
+        const categoryFilter = document.getElementById('category-filter');
+        const tagFilter = document.getElementById('tag-filter');
+
+        const recipeBrowserSection = document.getElementById('recipe-browser-section');
+        const recipeListDiv = document.getElementById('recipe-list');
+        const addRecipeFormSection = document.getElementById('add-recipe-form-section');
+        const addRecipeForm = document.getElementById('add-recipe-form');
+        const addRecipeTitleInput = document.getElementById('add-recipe-title');
+        const addRecipeImageURLInput = document.getElementById('add-recipe-image-url');
+        const addRecipeDescriptionInput = document.getElementById('add-recipe-description');
+        const addRecipeIngredientsInput = document.getElementById('add-recipe-ingredients');
+        const addRecipeInstructionsInput = document.getElementById('add-recipe-instructions');
+        const addRecipeCategoryInput = document.getElementById('add-recipe-category');
+        const addRecipeTagsInput = document.getElementById('add-recipe-tags');
+
+        const timerMinutesInput = document.getElementById('timer-minutes');
+        const timerSecondsInput = document.getElementById('timer-seconds');
+        const timerDisplay = document.getElementById('timer-display');
+        const timerStartBtn = document.getElementById('timer-start');
+        const timerPauseBtn = document.getElementById('timer-pause');
+        const timerResetBtn = document.getElementById('timer-reset');
+
+        const globalChecklistItemInput = document.getElementById('global-checklist-item-input');
+        const addGlobalChecklistItemBtn = document.getElementById('add-global-checklist-item');
+        const globalChecklistUl = document.getElementById('global-checklist');
+        const clearCompletedGlobalChecklistBtn = document.getElementById('clear-completed-global-checklist');
+
+        const customModal = document.getElementById('custom-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const modalCloseButton = document.querySelector('#custom-modal .close-button');
+        const modalOkButton = document.getElementById('modal-ok-button');
+
+        const recipeDetailModal = document.getElementById('recipe-detail-modal');
+        const detailModalCloseButton = document.getElementById('detail-modal-close-button');
+        const detailRecipeImage = document.getElementById('detail-recipe-image');
+        const detailRecipeTitle = document.getElementById('detail-recipe-title');
+        const detailRecipeDescription = document.getElementById('detail-recipe-description');
+        const detailRecipeTags = document.getElementById('detail-recipe-tags');
+        const detailFavoriteBtn = document.getElementById('detail-favorite-btn');
+        const favoriteIcon = document.getElementById('favorite-icon');
+        const favoriteText = document.getElementById('favorite-text');
+        const detailMarkDoneBtn = document.getElementById('detail-mark-done-btn');
+        const doneIcon = document.getElementById('done-icon');
+        const doneText = document.getElementById('done-text');
+        const detailEditBtn = document.getElementById('detail-edit-btn');
+        const detailFeedbackSection = document.getElementById('detail-feedback-section');
+        const detailFeedbackDisplay = document.getElementById('detail-feedback-display');
+
+        const detailSwapVeganCheckbox = document.getElementById('detail-swap-vegan');
+        const detailSwapGlutenFreeCheckbox = document.getElementById('detail-swap-gluten-free');
+        const detailSwapKetoCheckbox = document.getElementById('detail-swap-keto');
+        const detailApplySwapButton = document.getElementById('detail-apply-swap-button');
+        const detailIngredientsList = document.getElementById('detail-ingredients-list');
+        const detailInstructionsChecklist = document.getElementById('detail-instructions-checklist');
+
+        const feedbackModal = document.getElementById('feedback-modal');
+        const feedbackModalCloseButton = document.getElementById('feedback-modal-close-button');
+        const feedbackRatingInputs = document.querySelectorAll('.star-rating input[name="rating"]');
+        const feedbackCommentInput = document.getElementById('feedback-comment');
+        const submitFeedbackBtn = document.getElementById('submit-feedback-btn');
+
+        const editRecipeModal = document.getElementById('edit-recipe-modal');
+        const editModalCloseButton = document.getElementById('edit-modal-close-button');
+        const editRecipeForm = document.getElementById('edit-recipe-form');
+        const editRecipeIdInput = document.getElementById('edit-recipe-id');
+        const editRecipeTitleInput = document.getElementById('edit-recipe-title');
+        const editRecipeImageURLInput = document.getElementById('edit-recipe-image-url');
+        const editRecipeDescriptionInput = document.getElementById('edit-recipe-description');
+        const editRecipeIngredientsInput = document.getElementById('edit-recipe-ingredients');
+        const editRecipeInstructionsInput = document.getElementById('edit-recipe-instructions');
+        const editRecipeCategoryInput = document.getElementById('edit-recipe-category');
+        const editRecipeTagsInput = document.getElementById('edit-recipe-tags');
+
+
+        // --- Ingredient Swap Mapping ---
+        const ingredientSwapMap = {
+            vegan: {
+                'milk': 'almond milk',
+                'butter': 'vegan butter',
+                'eggs': 'flax eggs (1 tbsp ground flaxseed + 3 tbsp water per egg)',
+                'cheese': 'vegan cheese',
+                'honey': 'maple syrup',
+                'beef': 'lentils',
+                'chicken': 'seitan',
+                'pork': 'jackfruit',
+                'gelatin': 'agar-agar',
+                'yogurt': 'plant-based yogurt',
+                'cream': 'coconut cream'
+            },
+            'gluten-free': {
+                'flour': 'gluten-free flour blend',
+                'bread': 'gluten-free bread',
+                'pasta': 'gluten-free pasta',
+                'soy sauce': 'tamari (gluten-free soy sauce)',
+                'oats': 'certified gluten-free oats',
+                'wheat tortillas': 'corn tortillas'
+            },
+            keto: {
+                'sugar': 'erythritol or stevia',
+                'flour': 'almond flour or coconut flour',
+                'rice': 'cauliflower rice',
+                'potatoes': 'radishes or celeriac',
+                'bread': 'keto bread',
+                'pasta': 'zucchini noodles or shirataki noodles',
+                'corn': 'broccoli',
+                'carrots': 'green beans'
+            }
+        };
+
+        // --- Local Storage Functions ---
+
+        /**
+         * Saves the current recipes array to localStorage.
+         */
+        function saveRecipesToLocalStorage() {
+            localStorage.setItem('recipes', JSON.stringify(recipes));
+        }
+
+        /**
+         * Loads recipes from localStorage.
+         * @returns {Array} The loaded recipes array, or an empty array if none found.
+         */
+        function loadRecipesFromLocalStorage() {
+            const storedRecipes = localStorage.getItem('recipes');
+            return storedRecipes ? JSON.parse(storedRecipes) : [];
+        }
+
+        // --- Helper Functions ---
+
+        /**
+         * Displays a custom modal with a title and message.
+         * @param {string} title - The title of the modal.
+         * @param {string} message - The message content of the modal.
+         */
+        function showModal(title, message) {
+            modalTitle.textContent = title;
+            modalBody.innerHTML = message; // Use innerHTML to allow for HTML content
+            customModal.style.display = 'flex'; // Use flex to center content
+        }
+
+        /**
+         * Hides the custom modal.
+         */
+        function hideModal() {
+            customModal.style.display = 'none';
+        }
+
+        /**
+         * Shows a specific modal by its ID.
+         * @param {HTMLElement} modalElement - The modal DOM element to show.
+         */
+        function showSpecificModal(modalElement) {
+            modalElement.style.display = 'flex';
+        }
+
+        /**
+         * Hides a specific modal by its ID.
+         * @param {HTMLElement} modalElement - The modal DOM element to hide.
+         */
+        function hideSpecificModal(modalElement) {
+            modalElement.style.display = 'none';
+        }
+
+        /**
+         * Filters and renders recipes based on search query, category, and tags.
+         */
+        function filterAndRenderRecipes() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedCategory = categoryFilter.value;
+            const selectedTag = tagFilter.value;
+
+            const filteredRecipes = recipes.filter(recipe => {
+                const matchesSearch = recipe.title.toLowerCase().includes(searchTerm) ||
+                                      recipe.ingredients.some(ing => ing.toLowerCase().includes(searchTerm));
+                const matchesCategory = selectedCategory === 'all' || recipe.category === selectedCategory;
+                const matchesTag = selectedTag === 'all' || (recipe.tags && recipe.tags.includes(selectedTag));
+
+                return matchesSearch && matchesCategory && matchesTag;
+            });
+
+            renderRecipeCards(filteredRecipes);
+        }
+
+        /**
+         * Renders recipe cards in the recipe list section.
+         * @param {Array} recipesToRender - The array of recipe objects to render.
+         */
+        function renderRecipeCards(recipesToRender) {
+            recipeListDiv.innerHTML = ''; // Clear existing recipes
+            if (recipesToRender.length === 0) {
+                recipeListDiv.innerHTML = '<p class="text-center text-gray-500 col-span-full">No recipes found matching your criteria.</p>';
+                return;
+            }
+
+            recipesToRender.forEach(recipe => {
+                const recipeCard = document.createElement('div');
+                recipeCard.className = 'bg-gray-50 p-6 rounded-xl shadow-md border border-gray-100 flex flex-col justify-between transform hover:scale-102 transition duration-300 ease-in-out';
+                recipeCard.innerHTML = `
+                    <div>
+                        <img src="${recipe.imageURL || 'https://placehold.co/600x400/E0E7FF/4338CA?text=No+Image'}" alt="${recipe.title}" class="w-full h-48 object-cover rounded-lg mb-4 shadow-sm">
+                        <h3 class="text-2xl font-bold text-indigo-700 mb-2">${recipe.title}</h3>
+                        <p class="text-gray-600 text-sm mb-3 line-clamp-3">${recipe.description || 'No description available.'}</p>
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            ${recipe.tags && recipe.tags.map(tag => `<span class="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">${tag}</span>`).join('')}
+                            ${recipe.category ? `<span class="bg-purple-100 text-purple-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">${recipe.category}</span>` : ''}
+                        </div>
+                        <div class="flex items-center gap-2 text-xl mb-4">
+                            ${recipe.isFavorite ? '<span title="Favorite" class="text-yellow-500">⭐</span>' : ''}
+                            ${recipe.isTried ? '<span title="Tried" class="text-green-500">✅</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end gap-3">
+                        <button data-id="${recipe.id}" class="view-detail-btn py-2 px-4 bg-indigo-500 text-white rounded-lg shadow hover:bg-indigo-600 transition duration-200">View Details</button>
+                        <button data-id="${recipe.id}" class="delete-recipe-btn py-2 px-4 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition duration-200">Delete</button>
+                    </div>
+                `;
+                recipeListDiv.appendChild(recipeCard);
+            });
+
+            // Add event listeners for new buttons
+            document.querySelectorAll('.view-detail-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const recipeId = event.target.dataset.id;
+                    openRecipeDetailModal(recipeId);
+                });
+            });
+            document.querySelectorAll('.delete-recipe-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const recipeId = event.target.dataset.id;
+                    deleteRecipe(recipeId);
+                });
+            });
+        }
+
+        /**
+         * Adds a new recipe to the `recipes` array and re-renders the list.
+         * @param {object} newRecipe - The new recipe object.
+         */
+        function addRecipe(newRecipe) {
+            recipes.push(newRecipe);
+            saveRecipesToLocalStorage();
+            filterAndRenderRecipes(); // Re-render with new recipe
+            showModal('Success!', `Recipe "${newRecipe.title}" has been added!`);
+        }
+
+        /**
+         * Deletes a recipe from the `recipes` array by ID and re-renders the list.
+         * @param {string} id - The ID of the recipe to delete.
+         */
+        function deleteRecipe(id) {
+            const indexToDelete = recipes.findIndex(recipe => recipe.id == id);
+            if (indexToDelete > -1) {
+                const recipeTitle = recipes[indexToDelete].title;
+                recipes.splice(indexToDelete, 1);
+                saveRecipesToLocalStorage();
+                filterAndRenderRecipes();
+                showModal('Deleted!', `Recipe "${recipeTitle}" has been deleted.`);
+            }
+        }
+
+        /**
+         * Opens the recipe detail modal and populates it with the selected recipe's data.
+         * @param {string} recipeId - The ID of the recipe to display.
+         */
+        function openRecipeDetailModal(recipeId) {
+            const recipe = recipes.find(r => r.id == recipeId);
+            if (!recipe) {
+                showModal('Error', 'Recipe not found.');
+                return;
+            }
+
+            currentRecipeIdForDetailView = recipeId; // Store for later updates
+
+            detailRecipeImage.src = recipe.imageURL || 'https://placehold.co/600x400/E0E7FF/4338CA?text=No+Image';
+            detailRecipeTitle.textContent = recipe.title;
+            detailRecipeDescription.textContent = recipe.description || 'No description available.';
+
+            // Render tags
+            detailRecipeTags.innerHTML = '';
+            if (recipe.tags) {
+                recipe.tags.forEach(tag => {
+                    const span = document.createElement('span');
+                    span.className = 'bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-0.5 rounded-full';
+                    span.textContent = tag;
+                    detailRecipeTags.appendChild(span);
+                });
+            }
+            if (recipe.category) {
+                const span = document.createElement('span');
+                span.className = 'bg-purple-100 text-purple-700 text-xs font-semibold px-2.5 py-0.5 rounded-full';
+                span.textContent = recipe.category;
+                detailRecipeTags.appendChild(span);
+            }
+
+            // Update Favorite button
+            updateFavoriteButton(recipe.isFavorite);
+            // Update Mark as Done button
+            updateMarkDoneButton(recipe.isTried);
+
+            // Populate ingredients and instructions
+            renderDetailIngredients(recipe.ingredients);
+            renderDetailInstructionsChecklist(recipe.instructions);
+
+            // Reset swap checkboxes
+            detailSwapVeganCheckbox.checked = false;
+            detailSwapGlutenFreeCheckbox.checked = false;
+            detailSwapKetoCheckbox.checked = false;
+
+            // Display feedback
+            displayFeedback(recipe);
+
+            showSpecificModal(recipeDetailModal);
+        }
+
+        /**
+         * Updates the favorite button's text and icon.
+         * @param {boolean} isFavorite - Current favorite status.
+         */
+        function updateFavoriteButton(isFavorite) {
+            if (isFavorite) {
+                favoriteIcon.textContent = '💖'; // Heart icon for favorited
+                favoriteText.textContent = 'Favorited';
+                detailFavoriteBtn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                detailFavoriteBtn.classList.add('bg-pink-500', 'hover:bg-pink-600');
+            } else {
+                favoriteIcon.textContent = '⭐'; // Star icon for not favorited
+                favoriteText.textContent = 'Add to Favorites';
+                detailFavoriteBtn.classList.remove('bg-pink-500', 'hover:bg-pink-600');
+                detailFavoriteBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+            }
+        }
+
+        /**
+         * Updates the mark as done button's text and icon.
+         * @param {boolean} isTried - Current tried status.
+         */
+        function updateMarkDoneButton(isTried) {
+            if (isTried) {
+                doneIcon.textContent = '✅';
+                doneText.textContent = 'Tried';
+                detailMarkDoneBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                detailMarkDoneBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                detailMarkDoneBtn.disabled = true;
+            } else {
+                doneIcon.textContent = '☑️';
+                doneText.textContent = 'Mark as Done';
+                detailMarkDoneBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                detailMarkDoneBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+                detailMarkDoneBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Renders ingredients in the detail modal.
+         * @param {string[]} ingredients - Array of ingredients.
+         */
+        function renderDetailIngredients(ingredients) {
+            detailIngredientsList.innerHTML = '';
+            ingredients.forEach(ing => {
+                const li = document.createElement('li');
+                li.textContent = ing;
+                detailIngredientsList.appendChild(li);
+            });
+        }
+
+        /**
+         * Renders instructions as a checklist in the detail modal.
+         * @param {string} instructionsText - The full instructions string.
+         */
+        function renderDetailInstructionsChecklist(instructionsText) {
+            detailInstructionsChecklist.innerHTML = '';
+            const instructionsArray = instructionsText.split('\n').map(item => item.trim()).filter(item => item !== '');
+            instructionsArray.forEach(itemText => {
+                const listItem = document.createElement('li');
+                listItem.className = 'flex items-center bg-white p-3 rounded-lg shadow-sm border border-gray-100';
+                listItem.innerHTML = `
+                    <input type="checkbox" class="h-5 w-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer">
+                    <span class="ml-3 text-gray-700 flex-grow">${itemText}</span>
+                `;
+                detailInstructionsChecklist.appendChild(listItem);
+
+                const checkbox = listItem.querySelector('input[type="checkbox"]');
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        listItem.querySelector('span').classList.add('line-through', 'text-gray-400');
+                    } else {
+                        listItem.querySelector('span').classList.remove('line-through', 'text-gray-400');
+                    }
+                });
+            });
+        }
+
+        /**
+         * Displays feedback for a recipe in the detail modal.
+         * @param {object} recipe - The recipe object.
+         */
+        function displayFeedback(recipe) {
+            detailFeedbackDisplay.innerHTML = '';
+            if (recipe.feedback && recipe.feedback.rating) {
+                let stars = '';
+                for (let i = 0; i < recipe.feedback.rating; i++) {
+                    stars += '⭐';
+                }
+                detailFeedbackDisplay.innerHTML = `
+                    <p class="text-gray-800 font-semibold mb-1">Rating: ${stars}</p>
+                    <p class="text-gray-700 italic">${recipe.feedback.comment || 'No comment provided.'}</p>
+                `;
+            } else {
+                detailFeedbackDisplay.innerHTML = '<p class="text-gray-600 italic">No feedback yet.</p>';
+            }
+        }
+
+        /**
+         * Applies selected dietary swaps to a recipe's ingredients and displays the result live.
+         * @param {string} recipeId - The ID of the recipe to swap.
+         * @param {boolean} isVegan - True if vegan swap is requested.
+         * @param {boolean} isGlutenFree - True if gluten-free swap is requested.
+         * @param {boolean} isKeto - True if keto swap is requested.
+         */
+        function applyIngredientSwaps(recipeId, isVegan, isGlutenFree, isKeto) {
+            const recipe = recipes.find(r => r.id == recipeId);
+            if (!recipe) {
+                showModal('Error', 'Recipe not found for swapping.');
+                return;
+            }
+
+            let swappedIngredients = [...recipe.ingredients]; // Create a copy to modify
+
+            const swapTypes = [];
+            if (isVegan) swapTypes.push('vegan');
+            if (isGlutenFree) swapTypes.push('gluten-free');
+            if (isKeto) swapTypes.push('keto');
+
+            if (swapTypes.length === 0) {
+                renderDetailIngredients(recipe.ingredients); // Show original if no swaps selected
+                showModal('No Swaps Selected', 'Please select at least one dietary preference to apply swaps.');
+                return;
+            }
+
+            let changesMade = false;
+            swappedIngredients = swappedIngredients.map(ingredient => {
+                let originalIngredient = ingredient.toLowerCase();
+                let newIngredient = ingredient;
+
+                for (const type of swapTypes) {
+                    for (const key in ingredientSwapMap[type]) {
+                        if (originalIngredient.includes(key)) {
+                            newIngredient = newIngredient.replace(new RegExp(key, 'gi'), ingredientSwapMap[type][key]);
+                            changesMade = true;
+                            break;
+                        }
+                    }
+                }
+                return newIngredient;
+            });
+
+            renderDetailIngredients(swappedIngredients); // Update the displayed ingredients live
+
+            if (!changesMade) {
+                showModal('No Swaps Applied', 'No suitable ingredients found for the selected dietary preferences in this recipe. Displaying original ingredients.');
+            } else {
+                showModal('Swaps Applied!', 'Ingredients have been updated based on your selections.');
+            }
+        }
+
+        /**
+         * Renders the timer display.
+         * @param {number} seconds - The total seconds to display.
+         */
+        function updateTimerDisplay(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        }
+
+        /**
+         * Starts or resumes the timer.
+         */
+        function startTimer() {
+            if (timerInterval) return; // Prevent multiple intervals
+
+            // If timer is at 00:00, get initial time from inputs
+            if (timeLeft <= 0) {
+                const minutes = parseInt(timerMinutesInput.value) || 0;
+                const seconds = parseInt(timerSecondsInput.value) || 0;
+                timeLeft = (minutes * 60) + seconds;
+            }
+
+            if (timeLeft <= 0) {
+                showModal('Timer Error', 'Please set a time greater than 0.');
+                return;
+            }
+
+            timerMinutesInput.disabled = true;
+            timerSecondsInput.disabled = true;
+
+            timerInterval = setInterval(() => {
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    updateTimerDisplay(0);
+                    showModal('Timer Finished!', 'Your cooking timer has finished!');
+                    timerMinutesInput.disabled = false;
+                    timerSecondsInput.disabled = false;
+                    return;
+                }
+                timeLeft--;
+                updateTimerDisplay(timeLeft);
+            }, 1000);
+        }
+
+        /**
+         * Pauses the timer.
+         */
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerMinutesInput.disabled = false;
+            timerSecondsInput.disabled = false;
+        }
+
+        /**
+         * Resets the timer to 00:00 and clears the interval.
+         */
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timeLeft = 0;
+            updateTimerDisplay(0);
+            timerMinutesInput.value = 0;
+            timerSecondsInput.value = 0;
+            timerMinutesInput.disabled = false;
+            timerSecondsInput.disabled = false;
+        }
+
+        /**
+         * Adds a new item to the global checklist.
+         * @param {string} itemText - The text for the checklist item.
+         */
+        function addGlobalChecklistItem(itemText) {
+            if (!itemText.trim()) {
+                showModal('Input Error', 'Checklist item cannot be empty.');
+                return;
+            }
+
+            const listItem = document.createElement('li');
+            listItem.className = 'flex items-center justify-between bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100';
+            listItem.innerHTML = `
+                <div class="flex items-center">
+                    <input type="checkbox" class="global-checklist-checkbox h-5 w-5 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer">
+                    <span class="ml-3 text-gray-700 flex-grow">${itemText}</span>
+                </div>
+                <button class="delete-global-checklist-item-btn text-red-500 hover:text-red-700 transition duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            `;
+            globalChecklistUl.appendChild(listItem);
+            globalChecklistItemInput.value = ''; // Clear input
+
+            // Add event listeners for new item
+            const checkbox = listItem.querySelector('.global-checklist-checkbox');
+            checkbox.addEventListener('change', () => {
+                if (checkbox.checked) {
+                    listItem.querySelector('span').classList.add('line-through', 'text-gray-400');
+                } else {
+                    listItem.querySelector('span').classList.remove('line-through', 'text-gray-400');
+                }
+            });
+
+            const deleteButton = listItem.querySelector('.delete-global-checklist-item-btn');
+            deleteButton.addEventListener('click', () => {
+                listItem.remove();
+            });
+        }
+
+        /**
+         * Clears all completed items from the global checklist.
+         */
+        function clearCompletedGlobalChecklistItems() {
+            document.querySelectorAll('.global-checklist-checkbox:checked').forEach(checkbox => {
+                checkbox.closest('li').remove();
+            });
+        }
+
+        /**
+         * Switches the view between recipe browser and add recipe form.
+         * @param {string} view - 'home' or 'add-recipe' or 'favorites'.
+         */
+        function switchView(view) {
+            recipeBrowserSection.classList.add('hidden');
+            addRecipeFormSection.classList.add('hidden');
+
+            if (view === 'home') {
+                recipeBrowserSection.classList.remove('hidden');
+                filterAndRenderRecipes(); // Re-render all recipes
+            } else if (view === 'add-recipe') {
+                addRecipeFormSection.classList.remove('hidden');
+                addRecipeForm.reset(); // Clear form fields
+            } else if (view === 'favorites') {
+                recipeBrowserSection.classList.remove('hidden');
+                const favoriteRecipes = recipes.filter(recipe => recipe.isFavorite);
+                renderRecipeCards(favoriteRecipes);
+                if (favoriteRecipes.length === 0) {
+                    recipeListDiv.innerHTML = '<p class="text-center text-gray-500 col-span-full">No favorite recipes yet. Click the star icon on a recipe to add it to favorites!</p>';
+                }
+            }
+        }
+
+        /**
+         * Populates the edit recipe modal with the selected recipe's data.
+         * @param {string} recipeId - The ID of the recipe to edit.
+         */
+        function openEditRecipeModal(recipeId) {
+            const recipe = recipes.find(r => r.id == recipeId);
+            if (!recipe) {
+                showModal('Error', 'Recipe not found for editing.');
+                return;
+            }
+
+            editRecipeIdInput.value = recipe.id;
+            editRecipeTitleInput.value = recipe.title;
+            editRecipeImageURLInput.value = recipe.imageURL || '';
+            editRecipeDescriptionInput.value = recipe.description || '';
+            editRecipeIngredientsInput.value = recipe.ingredients.join('\n');
+            editRecipeInstructionsInput.value = recipe.instructions;
+            editRecipeCategoryInput.value = recipe.category || '';
+            editRecipeTagsInput.value = recipe.tags ? recipe.tags.join(', ') : '';
+
+            hideSpecificModal(recipeDetailModal); // Hide detail modal before showing edit modal
+            showSpecificModal(editRecipeModal);
+        }
+
+        /**
+         * Updates an existing recipe.
+         * @param {string} id - The ID of the recipe to update.
+         * @param {object} updatedFields - An object containing the fields to update.
+         */
+        function updateRecipe(id, updatedFields) {
+            const recipeIndex = recipes.findIndex(recipe => recipe.id == id);
+            if (recipeIndex > -1) {
+                recipes[recipeIndex] = { ...recipes[recipeIndex], ...updatedFields };
+                saveRecipesToLocalStorage();
+                filterAndRenderRecipes(); // Re-render main list
+                showModal('Updated!', `Recipe "${recipes[recipeIndex].title}" has been updated!`);
+                hideSpecificModal(editRecipeModal);
+                openRecipeDetailModal(id); // Re-open detail modal with updated info
+            } else {
+                showModal('Error', 'Recipe not found for update.');
+            }
+        }
+
+
+        // --- Event Listeners ---
+
+        // Navigation buttons
+        homeViewBtn.addEventListener('click', () => switchView('home'));
+        addRecipeViewBtn.addEventListener('click', () => switchView('add-recipe'));
+        favoritesViewBtn.addEventListener('click', () => switchView('favorites'));
+
+        // Search and Filter
+        searchInput.addEventListener('input', filterAndRenderRecipes);
+        categoryFilter.addEventListener('change', filterAndRenderRecipes);
+        tagFilter.addEventListener('change', filterAndRenderRecipes);
+
+
+        // Add Recipe Form Submission
+        addRecipeForm.addEventListener('submit', (event) => {
+            event.preventDefault(); // Prevent default form submission
+
+            const title = addRecipeTitleInput.value.trim();
+            const imageURL = addRecipeImageURLInput.value.trim();
+            const description = addRecipeDescriptionInput.value.trim();
+            const ingredients = addRecipeIngredientsInput.value.split('\n').map(item => item.trim()).filter(item => item !== '');
+            const instructions = addRecipeInstructionsInput.value.trim();
+            const category = addRecipeCategoryInput.value;
+            const tags = addRecipeTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+
+            if (!title || ingredients.length === 0 || !instructions) {
+                showModal('Validation Error', 'Please fill in required fields (Title, Ingredients, Instructions).');
+                return;
+            }
+
+            const newRecipe = {
+                id: Date.now().toString(), // Simple unique ID
+                title,
+                imageURL,
+                description,
+                ingredients,
+                instructions,
+                category,
+                tags,
+                isFavorite: false,
+                isTried: false,
+                feedback: { rating: null, comment: '' }
+            };
+
+            addRecipe(newRecipe);
+            addRecipeForm.reset(); // Clear form fields after submission
+            switchView('home'); // Go back to home view
+        });
+
+        // Timer Controls
+        timerStartBtn.addEventListener('click', startTimer);
+        timerPauseBtn.addEventListener('click', pauseTimer);
+        timerResetBtn.addEventListener('click', resetTimer);
+
+        // Global Checklist Controls
+        addGlobalChecklistItemBtn.addEventListener('click', () => {
+            addGlobalChecklistItem(globalChecklistItemInput.value);
+        });
+        globalChecklistItemInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                addGlobalChecklistItem(globalChecklistItemInput.value);
+            }
+        });
+        clearCompletedGlobalChecklistBtn.addEventListener('click', clearCompletedGlobalChecklistItems);
+
+        // General Message Modal Close Buttons
+        modalCloseButton.addEventListener('click', hideModal);
+        modalOkButton.addEventListener('click', hideModal);
+        customModal.addEventListener('click', (event) => {
+            if (event.target === customModal) {
+                hideModal();
+            }
+        });
+
+        // Recipe Detail Modal Close Button
+        detailModalCloseButton.addEventListener('click', () => hideSpecificModal(recipeDetailModal));
+        recipeDetailModal.addEventListener('click', (event) => {
+            if (event.target === recipeDetailModal) {
+                hideSpecificModal(recipeDetailModal);
+            }
+        });
+
+        // Recipe Detail Modal - Favorite Button
+        detailFavoriteBtn.addEventListener('click', () => {
+            const recipeIndex = recipes.findIndex(r => r.id == currentRecipeIdForDetailView);
+            if (recipeIndex > -1) {
+                recipes[recipeIndex].isFavorite = !recipes[recipeIndex].isFavorite;
+                saveRecipesToLocalStorage();
+                updateFavoriteButton(recipes[recipeIndex].isFavorite);
+                filterAndRenderRecipes(); // Update main view card
+            }
+        });
+
+        // Recipe Detail Modal - Mark as Done Button
+        detailMarkDoneBtn.addEventListener('click', () => {
+            const recipe = recipes.find(r => r.id == currentRecipeIdForDetailView);
+            if (recipe && !recipe.isTried) {
+                // Reset feedback modal inputs
+                feedbackRatingInputs.forEach(input => input.checked = false);
+                feedbackCommentInput.value = '';
+                showSpecificModal(feedbackModal);
+            }
+        });
+
+        // Recipe Detail Modal - Edit Button
+        detailEditBtn.addEventListener('click', () => {
+            openEditRecipeModal(currentRecipeIdForDetailView);
+        });
+
+        // Ingredient Swapper in Detail Modal
+        detailApplySwapButton.addEventListener('click', () => {
+            const isVegan = detailSwapVeganCheckbox.checked;
+            const isGlutenFree = detailSwapGlutenFreeCheckbox.checked;
+            const isKeto = detailSwapKetoCheckbox.checked;
+            applyIngredientSwaps(currentRecipeIdForDetailView, isVegan, isGlutenFree, isKeto);
+        });
+
+        // Feedback Modal Close Button
+        feedbackModalCloseButton.addEventListener('click', () => hideSpecificModal(feedbackModal));
+        feedbackModal.addEventListener('click', (event) => {
+            if (event.target === feedbackModal) {
+                hideSpecificModal(feedbackModal);
+            }
+        });
+
+        // Submit Feedback Button
+        submitFeedbackBtn.addEventListener('click', () => {
+            const recipeIndex = recipes.findIndex(r => r.id == currentRecipeIdForDetailView);
+            if (recipeIndex > -1) {
+                let rating = null;
+                feedbackRatingInputs.forEach(input => {
+                    if (input.checked) {
+                        rating = parseInt(input.value);
+                    }
+                });
+                const comment = feedbackCommentInput.value.trim();
+
+                if (rating === null) {
+                    showModal('Feedback Error', 'Please select a star rating.');
+                    return;
+                }
+
+                recipes[recipeIndex].isTried = true;
+                recipes[recipeIndex].feedback = { rating, comment };
+                saveRecipesToLocalStorage();
+                hideSpecificModal(feedbackModal);
+                showModal('Feedback Submitted!', 'Thank you for your feedback!');
+                openRecipeDetailModal(currentRecipeIdForDetailView); // Re-open detail modal to show updated status/feedback
+                filterAndRenderRecipes(); // Update main view card
+            }
+        });
+
+        // Edit Recipe Modal Close Button
+        editModalCloseButton.addEventListener('click', () => {
+            hideSpecificModal(editRecipeModal);
+            openRecipeDetailModal(currentRecipeIdForDetailView); // Go back to detail view
+        });
+        editRecipeModal.addEventListener('click', (event) => {
+            if (event.target === editRecipeModal) {
+                hideSpecificModal(editRecipeModal);
+                openRecipeDetailModal(currentRecipeIdForDetailView); // Go back to detail view
+            }
+        });
+
+        // Edit Recipe Form Submission
+        editRecipeForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const id = editRecipeIdInput.value;
+            const updatedFields = {
+                title: editRecipeTitleInput.value.trim(),
+                imageURL: editRecipeImageURLInput.value.trim(),
+                description: editRecipeDescriptionInput.value.trim(),
+                ingredients: editRecipeIngredientsInput.value.split('\n').map(item => item.trim()).filter(item => item !== ''),
+                instructions: editRecipeInstructionsInput.value.trim(),
+                category: editRecipeCategoryInput.value,
+                tags: editRecipeTagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
+            };
+
+            if (!updatedFields.title || updatedFields.ingredients.length === 0 || !updatedFields.instructions) {
+                showModal('Validation Error', 'Please fill in required fields (Title, Ingredients, Instructions).');
+                return;
+            }
+
+            updateRecipe(id, updatedFields);
+        });
+
+
+        // --- Initial Data and Rendering on Load ---
+        // Load recipes from localStorage or add dummy data if none exist
+        recipes = loadRecipesFromLocalStorage();
+        if (recipes.length === 0) {
+            recipes.push({
+                id: '1',
+                title: "Classic Pancakes",
+                imageURL: "https://placehold.co/600x400/FFDDC1/8B4513?text=Pancakes",
+                description: "Fluffy and delicious pancakes, perfect for a weekend breakfast.",
+                ingredients: [
+                    "1 ½ cups all-purpose flour",
+                    "3 ½ teaspoons baking powder",
+                    "1 teaspoon salt",
+                    "1 tablespoon white sugar",
+                    "1 ¼ cups milk",
+                    "1 egg",
+                    "3 tablespoons butter, melted"
+                ],
+                instructions: `1. In a large bowl, sift together the flour, baking powder, salt, and sugar.
+2. In a separate bowl, beat the egg and then stir in the milk and melted butter.
+3. Pour the milk mixture into the flour mixture; mix until just combined (a few lumps are okay).
+4. Heat a lightly oiled griddle or frying pan over medium-high heat.
+5. Pour ¼ cup of batter for each pancake onto the griddle.
+6. Cook until bubbles appear on the surface, then flip and cook until golden brown.`,
+                category: "Breakfast",
+                tags: ["Quick", "Sweet"],
+                isFavorite: false,
+                isTried: false,
+                feedback: { rating: null, comment: '' }
+            });
+
+            recipes.push({
+                id: '2',
+                title: "Vegetable Stir-Fry",
+                imageURL: "https://placehold.co/600x400/D4EDDA/155724?text=Stir-Fry",
+                description: "A quick and healthy vegetable stir-fry, customizable with your favorite veggies.",
+                ingredients: [
+                    "2 tbsp soy sauce",
+                    "1 tbsp sesame oil",
+                    "1 tsp ginger, grated",
+                    "1 clove garlic, minced",
+                    "1 head broccoli, chopped",
+                    "1 bell pepper, sliced",
+                    "1 cup mushrooms, sliced",
+                    "1/2 cup snap peas",
+                    "2 cups cooked rice"
+                ],
+                instructions: `1. In a small bowl, whisk together soy sauce, sesame oil, ginger, and garlic. Set aside.
+2. Heat a large skillet or wok over medium-high heat.
+3. Add broccoli, bell pepper, mushrooms, and snap peas. Stir-fry for 5-7 minutes until tender-crisp.
+4. Pour the sauce over the vegetables and toss to coat. Cook for another 1-2 minutes.
+5. Serve immediately over cooked rice.`,
+                category: "Dinner",
+                tags: ["Vegan", "Healthy", "Quick"],
+                isFavorite: false,
+                isTried: false,
+                feedback: { rating: null, comment: '' }
+            });
+
+            recipes.push({
+                id: '3',
+                title: "Homemade Pizza",
+                imageURL: "https://placehold.co/600x400/F8D7DA/721C24?text=Pizza",
+                description: "Classic homemade pizza with your choice of toppings.",
+                ingredients: [
+                    "1 pizza dough ball",
+                    "1/2 cup tomato sauce",
+                    "1 cup shredded mozzarella cheese",
+                    "1/4 cup pepperoni slices",
+                    "1/4 cup sliced mushrooms",
+                    "1 tbsp olive oil"
+                ],
+                instructions: `1. Preheat oven to 450°F (230°C).
+2. On a lightly floured surface, roll out the pizza dough to your desired thickness.
+3. Transfer dough to a pizza stone or baking sheet.
+4. Spread tomato sauce evenly over the dough, leaving a small border for the crust.
+5. Sprinkle with mozzarella cheese, then arrange pepperoni and mushrooms.
+6. Drizzle with olive oil.
+7. Bake for 12-15 minutes, or until the crust is golden brown and cheese is bubbly and slightly browned.
+8. Slice and serve hot.`,
+                category: "Dinner",
+                tags: ["Comfort Food"],
+                isFavorite: false,
+                isTried: false,
+                feedback: { rating: null, comment: '' }
+            });
+            saveRecipesToLocalStorage(); // Save dummy data to localStorage
+        }
+
+
+        // Initial render calls
+        filterAndRenderRecipes(); // Render all recipes initially
+        updateTimerDisplay(timeLeft); // Initialize timer display
+    </script>
+</body>
+</html>
